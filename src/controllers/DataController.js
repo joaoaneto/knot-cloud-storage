@@ -1,5 +1,7 @@
 import Joi from 'joi';
 import httpSignature from 'http-signature';
+import fs from 'fs';
+import sshpk from 'sshpk'
 
 const messageSchema = Joi.object().keys({
   data: Joi.object().keys({
@@ -31,15 +33,28 @@ function validateMessage(message) {
 }
 
 function verifySignature(request, publicKey) {
-  const parsedReq = httpSignature.parseRequest(request);
-  if (!httpSignature.verifySignature(parsedReq, Buffer.from(publicKey, 'base64').toString('ascii'))) {
-    throw new Error('Signature failed');
-  }
+  const parsedReq = httpSignature.parseRequest(request, { clockSkew: Number.MAX_VALUE });
+  console.log('SignedRequest: ', parsedReq);
+  // const pkey = Buffer.from(publicKey, 'base64');
+  console.log('Public Key: ', publicKey);
+
+  // if (!httpSignature.verify(parsedReq, publicKey)) {
+  //   throw new Error('Signature failed');
+  // }
+
+  const pubKey = sshpk.parseKey(publicKey);
+  const v = pubKey.createVerify('rsa-sha256');
+  console.log(parsedReq.algorithm);
+  console.log(parsedReq.params.signature);
+  console.log(parsedReq.signingString.length);
+  console.log(Buffer.byteLength(parsedReq.signingString, 'utf8'))
+  v.update(parsedReq.signingString);
+  console.log(v.verify(parsedReq.params.signature, 'base64'));
 }
 
 class DataController {
   constructor(settings, saveDataInteractor, listDataInteractor, logger) {
-    this.publicKey = settings.server.publicKey;
+    this.publicKey = Buffer.from(settings.server.publicKey, 'base64');
     this.saveDataInteractor = saveDataInteractor;
     this.listDataInteractor = listDataInteractor;
     this.logger = logger;
@@ -47,6 +62,24 @@ class DataController {
 
   async save(request, h) {
     try {
+      // this.publicKey = fs.readFileSync('publicKey.pem');
+      // this.publicKey = `LS0tLS1CRUdJTiBQVUJMSUMgS0VZLS0tLS0KTUlJQklqQU5CZ2txaGtpRzl3MEJBUUVGQUFPQ0FR
+      // OEFNSUlCQ2dLQ0FRRUFyUUdxVmhDVU5sakg0S2V4eUpObwpBazVFSXcyS0JZUW5rSkphYVhUVml0
+      // cXNud1p5bGM0eUJKWlovS3J2UHhXdGlNYXFuRmV4eEVTck16SGVtaGZwCnBSTjdXR3hETmQxcnNB
+      // cXpKbnJNNFowL3VWZ2ZYZUpsb3FxS2FWRkg4ZUtPcUJWS3dFK2ZxVzB4Z1oyTzRuK2QKT0JQM0wv
+      // Y3oyaGRTQU1RaFEwU01hOU9RbWdXR3F1ejRQaDRjelkvb1lKUGcvWDJMSVQ1RGR6djBiVmJNNzll
+      // awpDVk5JZkx2NnpBbVFPNTBUbkZyc3ZCeTZiZDM3azNUWWxjMGh4NzBDYnAwQjBabzFUQTlIbVp5
+      // cHhkdVZ3VTNnCkt1TXZSMkhEUGdlTnY4QXAyYlA5L3lwZzk5c1NDYXV3NmM5SjQ3dHNDWWZQZC91
+      // ZEUwcGV5bkxVU1R6cEQzRzcKUlFJREFRQUIKLS0tLS1FTkQgUFVCTElDIEtFWS0tLS0tCg==`;
+      // this.publicKey = `-----BEGIN PUBLIC KEY-----
+      // MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEArQGqVhCUNljH4KexyJNo
+      // Ak5EIw2KBYQnkJJaaXTVitqsnwZylc4yBJZZ/KrvPxWtiMaqnFexxESrMzHemhfp
+      // pRN7WGxDNd1rsAqzJnrM4Z0/uVgfXeJloqqKaVFH8eKOqBVKwE+fqW0xgZ2O4n+d
+      // OBP3L/cz2hdSAMQhQ0SMa9OQmgWGquz4Ph4czY/oYJPg/X2LIT5Ddzv0bVbM79ek
+      // CVNIfLv6zAmQO50TnFrsvBy6bd37k3TYlc0hx70Cbp0B0Zo1TA9HmZypxduVwU3g
+      // KuMvR2HDPgeNv8Ap2bP9/ypg99sSCauw6c9J47tsCYfPd/udE0peynLUSTzpD3G7
+      // RQIDAQAB
+      // -----END PUBLIC KEY-----`;
       verifySignature(request, this.publicKey);
       const message = mapRequestToMessage(request);
       validateMessage(message);
