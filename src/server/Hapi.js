@@ -15,6 +15,9 @@ class HapiServer {
       router: {
         stripTrailingSlash: true,
       },
+      routes: {
+        cors: true,
+      },
     });
     const goodOptions = {
       ops: false,
